@@ -10,7 +10,7 @@ docker run  --name proxy --restart=always \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v $(pwd)/certs:/usr/app/certs \
             -p 80:80 -p 443:443 -d \
-            docker.pkg.github.com/neonxp/cloudproxy/proxy
+            neonxp/proxy
 ```
 
 # Add service to proxy

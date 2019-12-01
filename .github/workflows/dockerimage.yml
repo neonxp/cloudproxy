@@ -15,9 +15,6 @@ jobs:
     - name: Build and tag image
       run: docker build -t docker.pkg.github.com/$GITHUB_REPOSITORY/proxy:$GITHUB_SHA .
 
-    - name: Tag image
-      run: docker tag docker.pkg.github.com/$GITHUB_REPOSITORY/proxy:$GITHUB_SHA docker.pkg.github.com/$GITHUB_REPOSITORY/proxy:latest .
-      
     - name: Docker login
       run: docker login docker.pkg.github.com -u $GITHUB_ACTOR -p $GITHUB_TOKEN
       env:
@@ -25,6 +22,3 @@ jobs:
 
     - name: Publish to GPR
       run: docker push "docker.pkg.github.com/$GITHUB_REPOSITORY/proxy:$GITHUB_SHA"
-
-    - name: Publish to GPR latest
-      run: docker push "docker.pkg.github.com/$GITHUB_REPOSITORY/proxy:latest"

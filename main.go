@@ -4,15 +4,14 @@ import (
 	"context"
 	"log"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/neonxp/rutina"
 	"golang.org/x/crypto/acme/autocert"
 )
 
-var Hosts []host
-var mu sync.Mutex
+var httpSrv *http.Server
+var httpsSrv *http.Server
 
 func main() {
 	r := rutina.New(rutina.WithListenOsSignals())
@@ -21,14 +20,13 @@ func main() {
 		panic(err)
 	}
 	handler := getHandler(w)
-	httpSrv := &http.Server{Addr: ":http", Handler: handler}
-	httpsSrv := &http.Server{Addr: ":https", Handler: handler}
 
 	// Docker
 	r.Go(w.watch)
 
 	// HTTPS
 	r.Go(func(ctx context.Context) error {
+		httpsSrv = &http.Server{Addr: ":https", Handler: handler}
 		hosts := []string{}
 		w.Range(func(key, value interface{}) bool {
 			h := value.(host)
@@ -43,24 +41,31 @@ func main() {
 			Prompt:     autocert.AcceptTOS,
 			HostPolicy: autocert.HostWhitelist(hosts...),
 		}
+		log.Println("https hosts:", hosts)
 		httpsSrv.TLSConfig = m.TLSConfig()
 		if err := httpsSrv.ListenAndServeTLS("", ""); err != http.ErrServerClosed {
 			return err
 		}
 		return nil
 	}, rutina.RestartIfDone)
+
 	r.Go(func(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 		case <-w.update():
+			log.Println("reload https config")
 		}
-		tctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		if httpsSrv == nil {
+			return nil
+		}
+		tctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		return httpsSrv.Shutdown(tctx)
 	}, rutina.RestartIfDone)
 
 	// HTTP
 	r.Go(func(ctx context.Context) error {
+		httpSrv = &http.Server{Addr: ":http", Handler: handler}
 		if err := httpSrv.ListenAndServe(); err != http.ErrServerClosed {
 			return err
 		}
@@ -69,7 +74,10 @@ func main() {
 	r.Go(func(ctx context.Context) error {
 		<-ctx.Done()
 		log.Println("Graceful shutdown")
-		tctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		if httpsSrv == nil {
+			return nil
+		}
+		tctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		return httpSrv.Shutdown(tctx)
 	})

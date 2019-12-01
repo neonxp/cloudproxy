@@ -24,7 +24,8 @@ func newWatcher() (*watcher, error) {
 		return nil, err
 	}
 	return &watcher{
-		cl: cl,
+		cl:  cl,
+		upd: make(chan interface{}),
 	}, nil
 }
 
@@ -62,8 +63,8 @@ func (w *watcher) watch(ctx context.Context) error {
 			newHost.Addr = nc.IPAddress
 			_, loaded := w.LoadOrStore(newHost.Host, newHost)
 			if !loaded {
-				log.Println("registered", newHost.Host, "->", newHost.Addr, newHost.Port)
-				w.upd <- nil
+				log.Println("registered", newHost.Host, "->", newHost.Addr, newHost.Port, "tls:", newHost.TLS)
+				w.upd <- struct{}{}
 			}
 			delete(toDelete, newHost.Host)
 		}

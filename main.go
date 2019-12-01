@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/neonxp/rutina"
@@ -14,19 +15,22 @@ var httpSrv *http.Server
 var httpsSrv *http.Server
 
 func main() {
+	certDir := os.Getenv("CERTDIR")
+	if certDir == "" {
+		certDir = "/usr/app/certs"
+	}
 	r := rutina.New(rutina.WithListenOsSignals())
 	w, err := newWatcher()
 	if err != nil {
 		panic(err)
 	}
-	handler := getHandler(w)
 
 	// Docker
 	r.Go(w.watch)
 
 	// HTTPS
 	r.Go(func(ctx context.Context) error {
-		httpsSrv = &http.Server{Addr: ":https", Handler: handler}
+		httpsSrv = &http.Server{Addr: ":https", Handler: getTlsHandler(w)}
 		hosts := []string{}
 		w.Range(func(key, value interface{}) bool {
 			h := value.(host)
@@ -37,7 +41,7 @@ func main() {
 			return true
 		})
 		m := &autocert.Manager{
-			Cache:      autocert.DirCache("certs"),
+			Cache:      autocert.DirCache(certDir),
 			Prompt:     autocert.AcceptTOS,
 			HostPolicy: autocert.HostWhitelist(hosts...),
 		}
@@ -48,7 +52,6 @@ func main() {
 		}
 		return nil
 	}, rutina.RestartIfDone)
-
 	r.Go(func(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
@@ -65,7 +68,7 @@ func main() {
 
 	// HTTP
 	r.Go(func(ctx context.Context) error {
-		httpSrv = &http.Server{Addr: ":http", Handler: handler}
+		httpSrv = &http.Server{Addr: ":http", Handler: getHandler(w)}
 		if err := httpSrv.ListenAndServe(); err != http.ErrServerClosed {
 			return err
 		}

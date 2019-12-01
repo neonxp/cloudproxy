@@ -21,4 +21,7 @@ jobs:
         GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
     - name: Publish to GPR
+      run: docker push "docker.pkg.github.com/$GITHUB_REPOSITORY/proxy:$GITHUB_SHA"
+
+    - name: Publish to GPR latest
       run: docker push "docker.pkg.github.com/$GITHUB_REPOSITORY/proxy:latest"
